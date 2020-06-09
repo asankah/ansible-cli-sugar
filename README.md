@@ -67,6 +67,12 @@ can use whichever names you like.
 
 2. Store this file somewhere on the system `PATH`.
 
+   Don't forget to mark the file as executable if it isn't already.
+
+   ```sh
+   $ chmod +x ansible-by-proxy
+   ```
+
 3. In that same directory, create symlinks to the file that have the same name
    as:
 

@@ -58,7 +58,8 @@ These are just examples. Please don't spend time bikeshedding names because you
 can use whichever names you like.
 
 1. Start with a file called `ansible-by-proxy` which looks like
-   [this](ansible-by-proxy). Feel free to modify it to suit your environment.
+   [this](httsp://github.com/asankah/ansible-cli-sugar/ansible-by-proxy). Feel
+   free to modify it to suit your environment.
 
    Note that the script expects to find a sub-directory called `ansible` in the
    same directory as the script which contains the playbooks and the inventory

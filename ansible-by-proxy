@@ -1,0 +1,180 @@
+#!/usr/bin/env bash
+
+set -e
+
+HERE=$(dirname "$0")
+HOST=$(basename "$0")
+INVENTORY=${HERE}/ansible/inventory
+
+function usage() {
+  cat <<EOF >&2
+Usage: ${HOST} [-n|--dry-run] {ansible-module} {arguments} -- [arguments]
+
+or
+
+Usage: ${HOST} [-n|--dry-run] [-r|--retry] {ansible-playbook} -- [arguments]
+
+In the first form, the invocation expands to the following shell invocation:
+
+    ansible -i ${INVENTORY} ${HOST} -m {ansible-module} -a {arguments} \
+      [arguments]
+
+In the second form, the invocation expands to:
+
+    ansible-playbook -i ${INVENTORY} -l ${HOST} {ansible-playbook}
+
+The {ansible-playbook} can be specified either as a filename relative to
+${HERE}/ansible/ or as a full path or as the basename excluding the .yml
+extension that refers to a file named ${HERE}/ansible/{ansible-playbook}.yml.
+
+The second form also allows specifying a -r or --retry option that will further
+limit the host selection based on a {ansible-playbook}.retry file that the
+script expects to find adjacent to the playbook.
+
+In both forms, the -n or --dry-run options cause the command to be printed
+without executing.
+
+The list of ansible playbooks that are available for use are:
+
+EOF
+
+  for pb in ${HERE}/ansible/*.yml ; do
+    echo "     $(basename $pb)"
+  done
+  exit 1
+}
+
+if [[ "${HOST}" == "ansible-by-proxy" ]]; then
+  cat <<EOF >&2
+This script isn't meant to be invoked as-is. Instead create a symlink to this
+script as follows:
+
+  $ ln -s ansible-by-proxy groupname
+
+... where "groupname" is a group defined in ${INVENTORY}.
+EOF
+  exit 1
+fi
+
+POSITIONAL=()
+REST=()
+while [[ $# -gt 0 ]]; do
+  ARG=$1
+  case $ARG in
+    -h | --help )
+      usage
+      ;;
+
+    -n | --dry-run | --dryrun )
+      ANSIBLEPREFIX=echo
+      shift
+      ;;
+
+    -r | --retry )
+      RETRY=1
+      shift
+      ;;
+
+    -- )
+      shift
+      REST=$@
+      shift $#
+      ;;
+
+    -* )
+      echo "Unrecognized option ${ARG}" >&2
+      usage
+      ;;
+
+    * )
+      if [[ ${#POSITIONAL[@]} -ge 2 ]]; then
+        REST="$@"
+        shift $#
+      else
+        POSITIONAL+=("$ARG")
+        shift
+      fi
+      ;;
+  esac
+done
+
+# Use pipelining instead of copying a script into the target VM. This saves us
+# one SSH session.
+export ANSIBLE_SSH_PIPELINING=True
+
+# Free scheduling means that tasks are run on each host indepdently. The
+# default is for all hosts to complete each step for the playbook to proceed to
+# the next step.
+export ANSIBLE_STRATEGY=free
+
+# Improve readability of ansible output. The default is to spit out unformatted
+# JSON.
+# To get a list of callback plugins, use: ansible-doc -t callback -l
+export ANSIBLE_STDOUT_CALLBACK=unixy
+
+# Enable use of callback plugins for ad-hoc commands.
+export ANSIBLE_LOAD_CALLBACK_PLUGINS=1
+
+# Don't spam syslog.
+export ANSIBLE_DEFAULT_NO_TARGET_SYSLOG=1
+
+log_dir=${HOME}/log
+log_name_suffix=$(date +%Y-%m-%d-%H-%M-%S)
+
+if [[ ! -d ${log_dir} ]]; then
+  mkdir -p ${log_dir}
+fi
+
+if [[ ${#POSITIONAL[@]} -eq 0 ]]; then
+  usage
+fi
+
+if [[ ${#POSITIONAL[@]} -eq 2 ]]; then
+  ${ANSIBLEPREFIX} ansible -i "${INVENTORY}" ${HOST} -m "${POSITIONAL[0]}" -a "${POSITIONAL[1]}" "${REST[@]}"
+
+else
+  MODULE=${POSITIONAL[0]}
+
+  function prep_logging() {
+    module_name=$(basename -s .yml ${MODULE})
+    latest_log_name=${log_dir}/${module_name}-latest.log
+
+    export ANSIBLE_LOG_PATH=${log_dir}/${module_name}-${log_name_suffix}.log
+
+    if [[ -f ${latest_log_name} ]]; then
+      rm ${latest_log_name}
+    fi
+    ln -s ${ANSIBLE_LOG_PATH} ${latest_log_name}
+  }
+
+  if [[ -n "$RETRY" ]]; then
+    LIMIT="--limit @${HERE}/ansible/${MODULE}.retry"
+  fi
+
+  # If the second argument is a playbook specified either as a relative path,
+  # or as just a playbook name, then we invoke the playbook and constrain the
+  # host selection to $HOST.
+  if [[ -f "${MODULE}" ]]; then
+    prep_logging
+    ${ANSIBLEPREFIX} ansible-playbook -i ${INVENTORY} --limit ${HOST} ${LIMIT} "${MODULE}" "${REST[@]}"
+    echo Log written to ${ANSIBLE_LOG_PATH}
+
+  elif [[ -f "${HERE}/ansible/${MODULE}.yml" ]]; then
+    prep_logging
+    ${ANSIBLEPREFIX} ansible-playbook -i ${INVENTORY} --limit ${HOST} ${LIMIT} "${HERE}/ansible/${MODULE}.yml" "${REST[@]}"
+
+    echo Log written to ${ANSIBLE_LOG_PATH}
+
+  # Otherwise, we treat it as an ad hoc command. MODULE now refers to an
+  # ansible module, and the next non-switch parameter is the argument for that
+  # module.
+  else
+    ${ANSIBLEPREFIX} ansible -i ${INVENTORY} ${HOST} -m ${MODULE} "${REST[@]}"
+  fi
+fi
+
+if [[ "$(type -t alert)" == "function" ]]; then
+  alert "Completed ${MODULE}"
+fi
+
+

@@ -1,5 +1,7 @@
-# A new way to work with Ansible on the command line
-
+---
+title: "A new way to work with Ansible on the command line"
+date: 2020-06-01
+---
 This article is about using [Ansible](https://ansible.com) on the command-line.
 
 ## Problem:

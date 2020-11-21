@@ -29,23 +29,31 @@ encodes Ansible group names into the filename.
 
 Then you can go from this:
 
-    $ ansible atlanta -m copy -a "src=/etc/hosts dest=/tmp/hosts"
-    $ ansible webservers -m service -a "name=httpd state=started"
+``` sh
+$ ansible atlanta -m copy -a "src=/etc/hosts dest=/tmp/hosts"
+$ ansible webservers -m service -a "name=httpd state=started"
+```
 
 To this:
 
-    $ atlanta copy "src=/etc/hosts dest=/tmp/hosts"
-    $ webservers service "name=https state=started"
+``` sh
+$ atlanta copy "src=/etc/hosts dest=/tmp/hosts"
+$ webservers service "name=https state=started"
+```
 
 Or from this:
 
-    $ ansible-playbook -l atlanta go-to-the-moon
-    $ ansible-playbook -l webservers do-the-other-things
+``` sh
+$ ansible-playbook -l atlanta go-to-the-moon
+$ ansible-playbook -l webservers do-the-other-things
+```
 
 To this:
 
-    $ atlanta go-to-the-moon
-    $ webservers do-the-other-things
+``` sh
+$ atlanta go-to-the-moon
+$ webservers do-the-other-things
+```
 
 ### Setting Up
 
@@ -66,13 +74,17 @@ because you can use whichever names you like.
 
     Don’t forget to mark the file as executable if it isn’t already.
 
-        $ chmod +x ansible-by-proxy
+    ``` sh
+    $ chmod +x ansible-by-proxy
+    ```
 
 3.  Create symlinks to the file that have the same name as hostnames or
     groups as described in the includes:
 
-        $ ln -s ansible-by-proxy atlanta
-        $ ln -s ansible-by-proxy webservers
+    ``` sh
+    $ ln -s ansible-by-proxy atlanta
+    $ ln -s ansible-by-proxy webservers
+    ```
 
     and so on.
 

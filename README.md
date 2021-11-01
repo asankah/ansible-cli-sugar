@@ -1,5 +1,4 @@
-Easier CLI for ad-hoc Ansible tasks and playbooks
-=================================================
+# Easier CLI for ad-hoc Ansible tasks and playbooks
 
 This article is about using [Ansible](https://ansible.com) on the
 command-line.
